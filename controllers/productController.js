@@ -1,6 +1,8 @@
 const Product = require("../models/productModel");
+const User = require ("../models/userModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
+const validateMongoDbId = require("../utils/validateMongodbId");
 
 const createProduct = asyncHandler(async (req, res) => {
   try{
@@ -16,6 +18,7 @@ const createProduct = asyncHandler(async (req, res) => {
 
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params; // Lấy giá trị của 'id' từ req.params
+  validateMongoDbId(id);
   try {
     if (req.body.title) {
       req.body.slug = slugify(req.body.title);
@@ -31,6 +34,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params; // Lấy giá trị của 'id' từ req.params
+  validateMongoDbId(id);
   try {
     const deleteProduct = await Product.findByIdAndDelete(id); // Sử dụng phương thức 'findByIdAndDelete'
     if (!deleteProduct) {
@@ -48,6 +52,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 
 const getaProduct = asyncHandler (async (req, res) =>{
   const {id} = req.params;
+  validateMongoDbId(id);
   try {
     const findProduct = await Product.findById(id);
     res.json(findProduct);
@@ -103,10 +108,42 @@ const getAllProduct = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
+
+const addToWishList = asyncHandler(async(req, res) => {
+  const { _id } = req.user;
+  const { proId } = req.body;
+  try{
+    const user = await User.findById(_id);
+    const alreadyadded = user.wishlist.find((id) => id.toString() === proId);
+    if (alreadyadded) {
+      let user = await  User.findByIdAndUpdate(
+        _id, {
+        $pull: { wishlist : proId},
+      },
+      {
+        new: true,
+      });
+      res.json(user);
+    }else{
+      let user = await  User.findByIdAndUpdate(
+        _id, 
+        {
+        $push: { wishlist : proId},
+      },
+      {
+        new: true,
+      });
+      res.json(user);
+    }
+  }catch (error) {
+    throw new Error(error);
+  }
+});
 module.exports = {
   createProduct, 
   getaProduct, 
   getAllProduct ,
   updateProduct,
   deleteProduct,
+  addToWishList,
 };
