@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken");
 const validateMongoDbId = require("../utils/validateMongodbId");
 const sendEmail = require("./emailController");
 const crypto = require("crypto");
+const { error } = require("console");
 
 const createUser = asyncHandler(async (req, res) => {
   const email = req.body.email;
@@ -279,6 +280,17 @@ const resetPassword = asyncHandler(async(req, res) => {
   res.json(user);
 });
 
+const getWishlist = asyncHandler(async(req, res) => {
+  const { id } = req.user;
+
+  try {
+    const findUser = await User.findById(id).populate("wishlist");
+    res.json(findUser);
+  }catch(error){
+    throw new Error(error)
+  }
+});
+
 module.exports = { 
   createUser, 
   loginUserController, 
@@ -294,4 +306,5 @@ module.exports = {
   forgotPasswordToken,
   resetPassword,
   loginAdminController,
+  getWishlist,
 };
