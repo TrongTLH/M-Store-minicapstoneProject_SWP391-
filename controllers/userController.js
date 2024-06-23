@@ -1,5 +1,7 @@
 const { generateToken } = require("../config/jwtToken");
 const User = require("../models/userModel");
+const Product = require("../models/productModel");
+const Cart = require("../models/cartModel");
 const asyncHandler = require("express-async-handler");
 const validate = require("../utils/validate");
 const { generateRefreshToken } = require("../config/refreshtoken");
@@ -7,7 +9,8 @@ const jwt = require("jsonwebtoken");
 const validateMongoDbId = require("../utils/validateMongodbId");
 const sendEmail = require("./emailController");
 const crypto = require("crypto");
-const { error } = require("console");
+const { log } = require("console");
+
 
 const createUser = asyncHandler(async (req, res) => {
   const email = req.body.email;
@@ -140,6 +143,22 @@ const updatedUser = asyncHandler(async (req, res) => {
       lastname: req?.body?.lastname,
       email: req?.body?.email,
       mobile: req?.body?.mobile,
+    },
+    {
+      new: true,
+    });
+    res.json(updatedUser);
+  }catch(error) {
+    throw new Error(error);
+  }
+});
+
+const saveAddress = asyncHandler(async(req, res) => {
+  const{_id} = req.user;
+  validate(_id);
+  try{
+    const updatedUser = await User.findByIdAndUpdate(_id, {
+      address: req?.body?.address,
     },
     {
       new: true,
@@ -291,6 +310,73 @@ const getWishlist = asyncHandler(async(req, res) => {
   }
 });
 
+
+const userCart = asyncHandler(async (req, res) => {
+  const { cart } = req.body;
+  const { _id } = req.user;
+
+  validateMongoDbId(_id);
+
+  try {
+    let products = [];
+    const user = await User.findById(_id);
+
+    // Tìm giỏ hàng của người dùng nếu đã tồn tại
+    let alreadyExistCart = await Cart.findOne({ orderby: user._id });
+
+    if (alreadyExistCart) {
+      // Xóa giỏ hàng hiện tại nếu đã tồn tại
+      await Cart.deleteOne({ _id: alreadyExistCart._id });
+    }
+
+    // Tạo mới danh sách sản phẩm trong giỏ hàng
+    for (let i = 0; i < cart.length; i++) {
+      let object = {};
+      object.product = cart[i]._id;
+      object.count = cart[i].count;
+      object.color = cart[i].color;
+
+      // Lấy giá của sản phẩm từ cơ sở dữ liệu
+      let getPrice = await Product.findById(cart[i]._id).select("price").exec();
+
+      if (getPrice) {
+        object.price = getPrice.price;
+        products.push(object);
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Product with id ${cart[i]._id} not found`
+        });
+      }
+    }
+
+    // Tính tổng giá trị giỏ hàng
+    let cartTotal = products.reduce((total, item) => total + item.price * item.count, 0);
+
+    // Tạo mới giỏ hàng và lưu vào cơ sở dữ liệu
+    const newCart = new Cart({
+      products,
+      cartTotal,
+      orderby: user._id
+    });
+
+    await newCart.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Cart has been updated successfully",
+      cart: newCart
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+
+
 module.exports = { 
   createUser, 
   loginUserController, 
@@ -307,4 +393,6 @@ module.exports = {
   resetPassword,
   loginAdminController,
   getWishlist,
+  saveAddress,
+  userCart,
 };
