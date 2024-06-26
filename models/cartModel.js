@@ -4,7 +4,7 @@ const mongoose = require('mongoose'); // Erase if already required
 var cartSchema = new mongoose.Schema({
    products: [
     {
-      Product: {
+      product: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Product",
       },
