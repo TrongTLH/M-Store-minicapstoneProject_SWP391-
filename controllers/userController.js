@@ -3,6 +3,8 @@ const User = require("../models/userModel");
 const Product = require("../models/productModel");
 const Cart = require("../models/cartModel");
 const Coupon = require("../models/couponModel");
+const Order = require("../models/orderModel");
+const uniqid = require('uniqid'); 
 const asyncHandler = require("express-async-handler");
 const validate = require("../utils/validate");
 const { generateRefreshToken } = require("../config/refreshtoken");
@@ -423,6 +425,64 @@ const applyCoupon = asyncHandler(async (req, res) => {
       res.json(totalAfterDiscount);
   });
 
+  const createOrder = asyncHandler(async (req, res) => {
+    const { COD, couponApplied } = req.body;
+    const { _id } = req.user;
+    validateMongoDbId(_id);
+  
+    try {
+      if (!COD) throw new Error("Create cash order failed");
+  
+      const user = await User.findById(_id);
+      let userCart = await Cart.findOne({ orderby: user._id });
+  
+      if (!userCart) {
+        throw new Error("User cart not found");
+      }
+  
+      let finalAmount = 0;
+  
+      if (couponApplied && userCart.totalAfterDiscount) {
+        finalAmount = userCart.totalAfterDiscount * 100;
+      } else {
+        finalAmount = userCart.cartTotal * 100;
+      }
+  
+      let newOrder = await new Order({
+        products: userCart.products,
+        paymentIntent: {
+          id: uniqid(),
+          method: "COD",
+          amount: finalAmount,
+          status: "Cash on Delivery",
+          create: Date.now(),
+          currency: "usd",
+        },
+        orderby: user._id,
+        orderStatus: "Cash on Delivery",
+      }).save();
+  
+      if (!Array.isArray(userCart.products)) {
+        throw new Error("Products in user cart is not an array");
+      }
+  
+      let update = userCart.products.map((item) => {
+        return {
+          updateOne: {
+            filter: { _id: item.product._id },
+            update: { $inc: { quantity: -item.count, sold: +item.count } },
+          },
+        };
+      });
+  
+      const updated = await Product.bulkWrite(update, {});
+      res.json({ message: "success" });
+  
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  });
+
 module.exports = { 
   createUser, 
   loginUserController, 
@@ -444,4 +504,5 @@ module.exports = {
   getUserCart,
   emptyCart,
   applyCoupon,
+  createOrder,
 };
