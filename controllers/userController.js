@@ -494,23 +494,29 @@ const getOrders = asyncHandler(async(req, res) => {
     }
 });
 
-const updateOrderStatus = asyncHandler(async(req, res) => {
+const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const { id } = req.params;
   validateMongoDbId(id);
-  try{
+
+  try {
     const updateOrderSt = await Order.findByIdAndUpdate(
-      id, 
+      id,
       {
         orderStatus: status,
         paymentIntent: {
           status: status,
         }
-      }, 
-      {new:true});
-      res.json(updateOrderSt);
-  }catch (error) {
-    throw new Error(error);
+      },
+      { new: true } 
+    );
+    if (!updateOrderSt) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    res.json(updateOrderSt);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
   }
 });
 
